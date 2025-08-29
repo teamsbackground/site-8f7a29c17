@@ -1,0 +1,223 @@
+body {
+    font-family: sans-serif;
+    background: #000000;
+    color: #ffffff;
+    text-align: center;
+    padding: 20px;
+    margin-top: 1vw;
+}
+
+/* Container mit Canvas-Breite */
+#tool-container {
+  display: inline-block;   /* richtet sich mittig aus */
+  text-align: left;        /* sorgt für linksbündigen Text */
+  width: 100%;
+  max-width: 2048px;       /* gleiche Breite wie das Canvas */
+}
+
+/* Intro-Text */
+#intro {
+    display: flex;
+    margin-bottom: 8vw;
+    line-height: 1.5;
+}
+
+.title{
+    margin: 0;
+    margin-right: 10vw;
+    margin-top: 1vw;
+    font-size: 4vw;
+    font-weight: 500;
+    letter-spacing: -0.15vw;
+    line-height: 4vw;
+}
+
+/* Canvas bleibt responsive */
+canvas {
+  border: 1px solid #ccc;
+  max-width: 100%;
+  height: auto;
+}
+
+input, button {
+  margin: 10px 0;
+  padding: 8px 12px;
+  font-size: 14px;
+}
+
+.discription{
+    width: 24vw;
+    margin-right: 5vw;
+    font-size: 1vw;
+    font-weight: 300;
+}
+
+.discription2{
+    width: 24vw;
+    margin-right: 0vw;
+    font-size: 1vw;
+    font-weight: 300;
+}
+
+.discription2 a{
+  text-decoration: none;
+  color: #ffffff;
+  font-weight: 600;
+  transition: .2s ease;
+}
+
+.discription2 a:hover{
+  text-decoration: none;
+  color: green;
+  font-weight: 600;
+  transition: .2s ease;
+}
+
+.smalltitle{
+    font-weight: 400;
+    font-size: 1.5vw;
+}
+
+
+
+/* Container */
+#upload-section {
+  margin: 20px 0;
+  text-align: center; /* oder left, je nach Layout */
+}
+
+.toolbar{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.toolbar label{ font-size: 1vw; }
+.toolbar select{
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #666;
+  background: #111;
+  color: #fff;
+  font-size: 1vw;
+}
+.edit-warp{ display: inline-flex; align-items: center; gap: 6px; }
+
+.allbuttons{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* margin-left: 45%; */
+}
+
+/* Das eigentliche File-Input */
+#logoUploader {
+  display: inline-block;
+  /* Standard-Dateiname im Input ausblenden, Button bleibt sichtbar */
+  color: transparent;
+}
+
+/* Modernes Styling für den nativen Button */
+#logoUploader::file-selector-button {
+  margin: 0;
+  background: #ffffff;
+  color: #000000;
+  font-weight: 600;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform .06s ease, opacity .2s ease;
+    font-size: 1vw;
+}
+
+#logoUploader::file-selector-button:hover { opacity: .9; }
+#logoUploader::file-selector-button:active { transform: translateY(1px); }
+#logoUploader:focus-visible::file-selector-button { outline: 2px solid #6cf; outline-offset: 2px; }
+
+/* Fallback für ältere WebKit-Browser */
+#logoUploader::-webkit-file-upload-button {
+    margin: 0;
+  background: #ffffff;
+  color: #000000;
+  font-weight: 600;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform .06s ease, opacity .2s ease;
+      font-size: 1vw;
+}
+
+/* Dateiname unter dem Button */
+#fileName {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #cccccc;
+}
+
+
+#balloonCanvas {
+  border: 1px solid #ccc;   /* optional, wenn du weiterhin einen Rahmen willst */
+  border-radius: 20px;      /* Wert kannst du anpassen, z. B. 10px oder 30px */
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 20px auto;
+}
+
+/* Container für Reset & Download Buttons */
+#action-buttons {
+  display: flex;
+  justify-content: flex-end;   /* Buttons nach rechts */
+  gap: 10px;    
+  width: 100%;               /* Abstand zwischen Reset & Download */
+  max-width: 2048px;           /* gleiche Breite wie Canvas */
+  margin: 10px auto 0 auto;    /* mittig zentrieren */
+}
+
+/* Buttons können so bleiben */
+#downloadBtn,
+#resetBtn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+      font-size: 1vw;
+}
+
+/* Download: aktiv/inaktiv */
+#downloadBtn {
+  background: #ffffff;
+  color: #000000;
+  border: none;
+  transition: background 0.3s ease;
+}
+#downloadBtn:not(:disabled):hover {
+  background: #cccccc;
+}
+#downloadBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #777;
+  color: #eee;
+}
+
+/* Reset: aktiv/inaktiv */
+#resetBtn {
+  background: transparent;
+  color: #fff;
+  border: 1px solid #666;
+  transition: opacity .2s ease;
+}
+#resetBtn:not(:disabled):hover {
+  opacity: .85;
+}
+#resetBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  color: #888;
+  border-color: #444;
+}
+

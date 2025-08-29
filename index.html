@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Teams Background Logo Overlay</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+  <body>
+
+  <div id="tool-container">
+    <!-- Intro & Explanation -->
+
+    <div id="intro">
+
+
+      <p class="title">Teams Background <br> Logo Overlay</p>
+
+
+      <div class="discription">
+        <p class="smalltitle">How it works.</p>
+        <p>
+          1. Click “Choose File” to upload your logo. <br>
+          2. Your logo will automatically appear on the truck in the image. <br>
+          3. To save it, simply click "Download". <br>
+          4. To remove the logo, click "Reset". <br>
+        </p>
+      </div>
+
+      <div class="discription2">
+        <p class="smalltitle">Good to know.</p>
+        <p>
+                  You can upload SVG or PNG files with a transparent background. <br>
+                  All colors in your logo will be automatically converted to white. <br>
+                  Transparent areas remain transparent.
+          <br>
+          <br>
+            You can often find company SVG logo files using the Chrome extension
+          <a href="https://chromewebstore.google.com/detail/svg-export/naeaaedieihlkmdajjefioajbbdbdjgp"
+            target="_blank">
+            SVG Export</a> directly on their homepage.
+        </p>
+      </div>
+
+
+    </div>
+
+
+
+    <!-- <input type="file" id="logoUploader" accept="image/*" />
+    <br />
+    <canvas id="balloonCanvas" width="2048" height="1152"></canvas>
+    <br /> -->
+
+    <div id="upload-section">
+
+      <div class="toolbar">
+        <label for="backgroundSelect">Background:</label>
+        <select id="backgroundSelect">
+          <option value="do_not_touch.png" selected>Background 01</option>
+          <option value="background02.png">Background 02</option>
+        </select>
+
+        <label class="edit-warp">
+          <input type="checkbox" id="editWarp"> Warp bearbeiten
+        </label>
+        <button id="resetWarpBtn" type="button">Warp zurücksetzen</button>
+      </div>
+
+      <div class="allbuttons">
+        <input type="file" id="logoUploader" accept="image/*" />
+
+        <div id="action-buttons">
+          <button id="resetBtn" type="button" disabled>Reset</button>
+          <button id="downloadBtn" disabled>Download Image</button>
+        </div>
+      </div>
+
+      <canvas id="balloonCanvas" width="2048" height="1152"></canvas>
+    </div>
+
+
+    <script>
+      // ========= Konfiguration =========
+      // Reihenfolge: p0=oben-links, p1=oben-rechts, p2=unten-rechts, p3=unten-links
+      const WARP_PRESETS = {
+        'do_not_touch.png': {
+          p0: { x: 1120, y: 650 },
+          p1: { x: 1366, y: 645 },
+          p2: { x: 1367, y: 777 },
+          p3: { x: 1119, y: 737 }
+        },
+        'background02.png': {
+          // Platzhalter: gleiche Werte wie erster Hintergrund; kann per UI angepasst werden
+          p0: { x: 1120, y: 650 },
+          p1: { x: 1366, y: 645 },
+          p2: { x: 1367, y: 777 },
+          p3: { x: 1119, y: 737 }
+        }
+      };
+      function cloneWarp(w) { return { p0: { ...w.p0 }, p1: { ...w.p1 }, p2: { ...w.p2 }, p3: { ...w.p3 } }; }
+      let currentBg = 'do_not_touch.png';
+      let LOGO_WARP = cloneWarp(WARP_PRESETS[currentBg]);
+      const WARP_COLS = 60;   // mehr = glatter, aber langsamer
+      const WARP_ROWS = 40;
+
+
+      // Mapping–Rechteck anzeigen oder nicht anzeigen (true or false)
+      let SHOW_WARP_DEBUG = false;
+
+
+
+      const BLEND_MODE = 'overlay'; // für Tests: 'source-over'
+
+
+
+      // ========= Canvas + UI =========
+      const canvas = document.getElementById('balloonCanvas');
+      const ctx = canvas.getContext('2d');
+      const balloonImage = new Image();
+      // CORS nur setzen, wenn über http(s); vermeidet Probleme bei file://
+      try {
+        if (/^https?:/i.test(window.location.protocol)) {
+          balloonImage.crossOrigin = 'anonymous';
+        }
+      } catch (_) {}
+      balloonImage.src = currentBg;
+
+      let fileInput = document.getElementById('logoUploader'); // (let, weil wir ihn beim Reset ersetzen)
+      const downloadBtn = document.getElementById('downloadBtn');
+      const resetBtn = document.getElementById('resetBtn');
+
+      let isBalloonLoaded = false;
+      let latestLogo = null;
+      let draggingPoint = null;
+
+
+      /* fileInput.addEventListener('change', (event) => {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+
+        if (file.type === "image/svg+xml" || file.name.endsWith(".svg")) {
+          // Als Text lesen
+          reader.onload = (e) => {
+            let svgText = e.target.result;
+
+            // alle fill/stroke entfernen und durch weiß ersetzen
+            svgText = svgText
+              .replace(/fill="[^"]*"/g, 'fill="white"')
+              .replace(/stroke="[^"]*"/g, 'stroke="white"');
+
+            // auch falls kein fill da ist: root-SVG Tag bekommt fill=white
+            if (!svgText.includes('fill="white"')) {
+              svgText = svgText.replace(
+                /<svg([^>]*)>/,
+                '<svg$1 fill="white">'
+              );
+            }
+
+            // Blob aus dem neuen SVG machen
+            const blob = new Blob([svgText], { type: "image/svg+xml" });
+            const url = URL.createObjectURL(blob);
+
+            const logoImg = new Image();
+            logoImg.onload = () => {
+              latestLogo = logoImg;
+              redrawCanvas();
+              downloadBtn.disabled = false;
+              resetBtn.disabled = false;
+              URL.revokeObjectURL(url); // Speicher freigeben
+            };
+            logoImg.src = url;
+          };
+          reader.readAsText(file);
+
+        } else {
+          // normale PNG/JPG usw.
+          reader.onload = (e) => {
+            const logoImg = new Image();
+            logoImg.onload = () => {
+              latestLogo = logoImg;
+              redrawCanvas();
+              downloadBtn.disabled = false;
+              resetBtn.disabled = false;
+            };
+            logoImg.src = e.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
+      }); */
+
+      // Einheitlicher Upload-Handler + Weißfärbung (SVG & PNG/JPG)
+      function whitenImageToCanvas(img) {
+        const w = Math.max(1, img.naturalWidth || img.width || 1);
+        const h = Math.max(1, img.naturalHeight || img.height || 1);
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const cctx = c.getContext('2d');
+        cctx.drawImage(img, 0, 0, w, h);
+        try {
+          const imgData = cctx.getImageData(0, 0, w, h);
+          const data = imgData.data;
+          for (let i = 0; i < data.length; i += 4) {
+            const a = data[i + 3];
+            if (a !== 0) {
+              data[i] = 255;
+              data[i + 1] = 255;
+              data[i + 2] = 255;
+            }
+          }
+          cctx.putImageData(imgData, 0, 0);
+        } catch (e) { /* ignore taint */ }
+        return c;
+      }
+
+      function whitenCanvasInPlace(cnv) {
+        try {
+          const ctx2 = cnv.getContext('2d');
+          const d = ctx2.getImageData(0, 0, cnv.width, cnv.height);
+          const a = d.data;
+          for (let i = 0; i < a.length; i += 4) {
+            if (a[i + 3] !== 0) { a[i] = 255; a[i + 1] = 255; a[i + 2] = 255; }
+          }
+          ctx2.putImageData(d, 0, 0);
+        } catch (_) {}
+        return cnv;
+      }
+
+      function parseSvgAspect(svgText) {
+        const vb = /viewBox\s*=\s*"([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)"/i.exec(svgText);
+        if (vb) {
+          const vw = parseFloat(vb[3]);
+          const vh = parseFloat(vb[4]);
+          if (vw > 0 && vh > 0) return vw / vh;
+        }
+        const wAttr = /\bwidth\s*=\s*"([\d\.]+)(px)?"/i.exec(svgText);
+        const hAttr = /\bheight\s*=\s*"([\d\.]+)(px)?"/i.exec(svgText);
+        if (wAttr && hAttr) {
+          const vw = parseFloat(wAttr[1]);
+          const vh = parseFloat(hAttr[1]);
+          if (vw > 0 && vh > 0) return vw / vh;
+        }
+        return 1;
+      }
+
+      function bindUploadHandler(inputEl) {
+        inputEl.addEventListener('change', (event) => {
+          const file = event.target.files && event.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          if (file.type === 'image/svg+xml' || (file.name || '').toLowerCase().endsWith('.svg')) {
+            reader.onload = (e) => {
+              const svgText = String(e.target.result || '');
+              const aspect = parseSvgAspect(svgText);
+              const targetLongSide = 800;
+              let tw, th;
+              if (aspect >= 1) { tw = targetLongSide; th = Math.max(1, Math.round(targetLongSide / (aspect || 1))); }
+              else { th = targetLongSide; tw = Math.max(1, Math.round(targetLongSide * (aspect || 1))); }
+
+              const blob = new Blob([svgText], { type: 'image/svg+xml' });
+              const url = URL.createObjectURL(blob);
+              const img = new Image();
+              img.onload = () => {
+                const cnv = document.createElement('canvas');
+                cnv.width = tw; cnv.height = th;
+                const c2 = cnv.getContext('2d');
+                c2.drawImage(img, 0, 0, tw, th);
+                latestLogo = whitenCanvasInPlace(cnv);
+                setButtons(true);
+                redrawCanvas();
+                URL.revokeObjectURL(url);
+              };
+              img.src = url;
+            };
+            reader.readAsText(file);
+          } else {
+            reader.onload = (e) => {
+              const img = new Image();
+              img.onload = () => {
+                latestLogo = whitenImageToCanvas(img);
+                setButtons(true);
+                redrawCanvas();
+              };
+              img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+          }
+        });
+      }
+      bindUploadHandler(fileInput);
+
+
+      function setButtons(hasLogo) {
+        downloadBtn.disabled = !hasLogo;
+        resetBtn.disabled = !hasLogo;
+        if (hasLogo) { downloadBtn.removeAttribute('disabled'); resetBtn.removeAttribute('disabled'); }
+        else { downloadBtn.setAttribute('disabled', ''); resetBtn.setAttribute('disabled', ''); }
+      }
+
+      // ========= Mathe-Helfer (3x3) =========
+      function inv3(m) {
+        const a = m[0][0], b = m[0][1], c = m[0][2];
+        const d = m[1][0], e = m[1][1], f = m[1][2];
+        const g = m[2][0], h = m[2][1], i = m[2][2];
+        const A = e * i - f * h;
+        const B = -(d * i - f * g);
+        const C = d * h - e * g;
+        const D = -(b * i - c * h);
+        const E = a * i - c * g;
+        const F = -(a * h - b * g);
+        const G = b * f - c * e;
+        const H = -(a * f - c * d);
+        const I = a * e - b * d;
+        const det = a * A + b * B + c * C;
+        const invDet = 1 / det;
+        return [
+          [A * invDet, D * invDet, G * invDet],
+          [B * invDet, E * invDet, H * invDet],
+          [C * invDet, F * invDet, I * invDet],
+        ];
+      }
+      function mul3(a, b) {
+        return [
+          [
+            a[0][0] * b[0][0] + a[0][1] * b[1][0] + a[0][2] * b[2][0],
+            a[0][0] * b[0][1] + a[0][1] * b[1][1] + a[0][2] * b[2][1],
+            a[0][0] * b[0][2] + a[0][1] * b[1][2] + a[0][2] * b[2][2],
+          ],
+          [
+            a[1][0] * b[0][0] + a[1][1] * b[1][0] + a[1][2] * b[2][0],
+            a[1][0] * b[0][1] + a[1][1] * b[1][1] + a[1][2] * b[2][1],
+            a[1][0] * b[0][2] + a[1][1] * b[1][2] + a[1][2] * b[2][2],
+          ],
+          [
+            a[2][0] * b[0][0] + a[2][1] * b[1][0] + a[2][2] * b[2][0],
+            a[2][0] * b[0][1] + a[2][1] * b[1][1] + a[2][2] * b[2][1],
+            a[2][0] * b[0][2] + a[2][1] * b[1][2] + a[2][2] * b[2][2],
+          ],
+        ];
+      }
+
+      // Liefert Canvas-Matrix (a,b,c,d,e,f), die src-Dreieck -> dst-Dreieck abbildet
+      function affineFromTriangles(s0, s1, s2, d0, d1, d2) {
+        const S = [
+          [s0.x, s1.x, s2.x],
+          [s0.y, s1.y, s2.y],
+          [1, 1, 1],
+        ];
+        const D = [
+          [d0.x, d1.x, d2.x],
+          [d0.y, d1.y, d2.y],
+          [1, 1, 1],
+        ];
+        const M = mul3(D, inv3(S)); // 3x3
+        // Canvas erwartet: x' = a*x + c*y + e,  y' = b*x + d*y + f
+        return { a: M[0][0], b: M[1][0], c: M[0][1], d: M[1][1], e: M[0][2], f: M[1][2] };
+      }
+
+      // Bilinear Interpolation im Quad (u,v in [0..1])
+      function bilerp(u, v, p0, p1, p2, p3) {
+        const x = (1 - u) * (1 - v) * p0.x + u * (1 - v) * p1.x + u * v * p2.x + (1 - u) * v * p3.x;
+        const y = (1 - u) * (1 - v) * p0.y + u * (1 - v) * p1.y + u * v * p2.y + (1 - u) * v * p3.y;
+        return { x, y };
+      }
+
+
+
+
+      // Zeichnet das Bild in das Quad p0..p3 (stückweise, 2 Dreiecke pro Zelle)
+      function drawWarpedImage(ctx, img, p0, p1, p2, p3, cols = 30, rows = 15) {
+        const w = img.width, h = img.height;
+
+        for (let i = 0; i < cols; i++) {
+          const u0 = i / cols, u1 = (i + 1) / cols;
+          for (let j = 0; j < rows; j++) {
+            const v0 = j / rows, v1 = (j + 1) / rows;
+
+            // Zielpunkte der aktuellen Zelle
+            const q00 = bilerp(u0, v0, p0, p1, p2, p3);
+            const q10 = bilerp(u1, v0, p0, p1, p2, p3);
+            const q11 = bilerp(u1, v1, p0, p1, p2, p3);
+            const q01 = bilerp(u0, v1, p0, p1, p2, p3);
+
+            // Quellrechteck der Zelle
+            const sx0 = u0 * w, sy0 = v0 * h, sx1 = u1 * w, sy1 = v1 * h;
+
+            // --- oberes Dreieck (src: (sx0,sy0)-(sx1,sy0)-(sx1,sy1)) -> (q00,q10,q11)
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(q00.x, q00.y); ctx.lineTo(q10.x, q10.y); ctx.lineTo(q11.x, q11.y); ctx.closePath();
+            ctx.clip();
+            const m1 = affineFromTriangles(
+              { x: sx0, y: sy0 }, { x: sx1, y: sy0 }, { x: sx1, y: sy1 },
+              q00, q10, q11
+            );
+            ctx.setTransform(m1.a, m1.b, m1.c, m1.d, m1.e, m1.f);
+            // Wichtig: Quelle auf Originalkoordinaten zeichnen (keine falsche Kachelung)
+            ctx.drawImage(img, 0, 0);
+            ctx.restore();
+
+            // --- unteres Dreieck (src: (sx0,sy0)-(sx1,sy1)-(sx0,sy1)) -> (q00,q11,q01)
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(q00.x, q00.y); ctx.lineTo(q11.x, q11.y); ctx.lineTo(q01.x, q01.y); ctx.closePath();
+            ctx.clip();
+            const m2 = affineFromTriangles(
+              { x: sx0, y: sy0 }, { x: sx1, y: sy1 }, { x: sx0, y: sy1 },
+              q00, q11, q01
+            );
+            ctx.setTransform(m2.a, m2.b, m2.c, m2.d, m2.e, m2.f);
+            ctx.drawImage(img, 0, 0);
+            ctx.restore();
+          }
+        }
+        // Transform zurücksetzen
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+      }
+
+
+
+      // Effektive Breite/Höhe des Ziel-Quads (Mittel der gegenüberliegenden Kanten)
+      function dist(a, b) { const dx = a.x - b.x, dy = a.y - b.y; return Math.hypot(dx, dy); }
+      function quadEffectiveSize(p0, p1, p2, p3) {
+        const width = (dist(p0, p1) + dist(p3, p2)) / 2;   // oben & unten
+        const height = (dist(p0, p3) + dist(p1, p2)) / 2;   // links & rechts
+        return { width, height };
+      }
+
+      // "Contain": Logo vollständig sichtbar, AR bleibt erhalten, füllt Breite ODER Höhe
+      function computeContainSpans(p0, p1, p2, p3, logoW, logoH) {
+        const { width: wEff, height: hEff } = quadEffectiveSize(p0, p1, p2, p3);
+        const logoAR = (logoW || 1) / (logoH || 1);
+        const quadAR = wEff / hEff;
+
+        // Wenn Logo breiter als Quad (AR höher) -> volle Breite, Höhe mit Rand
+        // Sonst volle Höhe, Breite mit Rand
+        let uSpan, vSpan;
+        if (logoAR >= quadAR) {        // fill width
+          uSpan = 1;
+          vSpan = quadAR / logoAR;     // <= 1
+        } else {                       // fill height
+          uSpan = logoAR / quadAR;     // <= 1
+          vSpan = 1;
+        }
+
+        const uMin = (1 - uSpan) / 2, uMax = 1 - uMin;
+        const vMin = (1 - vSpan) / 2, vMax = 1 - vMin;
+        return { uMin, uMax, vMin, vMax };
+      }
+
+      // Wie drawWarpedImage, aber: Quelle = GANZES Bild; Ziel = nur Teilbereich (uMin..uMax, vMin..vMax)
+      // => Kein Cropping, sondern "Letterboxing" innerhalb des Quads.
+      function drawWarpedImageContain(ctx, img, p0, p1, p2, p3, uMin, uMax, vMin, vMax, cols = 30, rows = 15) {
+        const w = img.width, h = img.height;
+
+        for (let i = 0; i < cols; i++) {
+          // Quelle (volle Textur)
+          const su0 = i / cols, su1 = (i + 1) / cols;
+          for (let j = 0; j < rows; j++) {
+            const sv0 = j / rows, sv1 = (j + 1) / rows;
+
+            // Ziel (nur Teilbereich innerhalb des Quads)
+            const du0 = uMin + (uMax - uMin) * su0;
+            const du1 = uMin + (uMax - uMin) * su1;
+            const dv0 = vMin + (vMax - vMin) * sv0;
+            const dv1 = vMin + (vMax - vMin) * sv1;
+
+            // Zielpunkte
+            const q00 = bilerp(du0, dv0, p0, p1, p2, p3);
+            const q10 = bilerp(du1, dv0, p0, p1, p2, p3);
+            const q11 = bilerp(du1, dv1, p0, p1, p2, p3);
+            const q01 = bilerp(du0, dv1, p0, p1, p2, p3);
+
+            // Quellkoordinaten (volle Textur)
+            const sx0 = su0 * w, sy0 = sv0 * h, sx1 = su1 * w, sy1 = sv1 * h;
+
+            // Oberes Dreieck
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(q00.x, q00.y); ctx.lineTo(q10.x, q10.y); ctx.lineTo(q11.x, q11.y); ctx.closePath();
+            ctx.clip();
+            const m1 = affineFromTriangles(
+              { x: sx0, y: sy0 }, { x: sx1, y: sy0 }, { x: sx1, y: sy1 },
+              q00, q10, q11
+            );
+            ctx.setTransform(m1.a, m1.b, m1.c, m1.d, m1.e, m1.f);
+            ctx.drawImage(img, 0, 0);
+            ctx.restore();
+
+            // Unteres Dreieck
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(q00.x, q00.y); ctx.lineTo(q11.x, q11.y); ctx.lineTo(q01.x, q01.y); ctx.closePath();
+            ctx.clip();
+            const m2 = affineFromTriangles(
+              { x: sx0, y: sy0 }, { x: sx1, y: sy1 }, { x: sx0, y: sy1 },
+              q00, q11, q01
+            );
+            ctx.setTransform(m2.a, m2.b, m2.c, m2.d, m2.e, m2.f);
+            ctx.drawImage(img, 0, 0);
+            ctx.restore();
+          }
+        }
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+      }
+
+
+
+      // ========= Zeichnen =========
+      function redrawCanvas() {
+        if (!isBalloonLoaded) return;
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(balloonImage, 0, 0, canvas.width, canvas.height);
+
+        if (latestLogo) {
+          // Offscreen (optional wie gehabt)
+          const maxLogoH = 220, maxLogoW = 500;
+          const aspect = (latestLogo.width || 1) / (latestLogo.height || 1);
+          let offW = Math.min(maxLogoW, Math.round(maxLogoH * aspect));
+          let offH = Math.min(maxLogoH, Math.round(offW / aspect));
+          const off = document.createElement('canvas');
+          off.width = Math.max(1, offW);
+          off.height = Math.max(1, offH);
+          off.getContext('2d').drawImage(latestLogo, 0, 0, off.width, off.height);
+
+          // ➜ "Contain"-Spans berechnen (keine Zuschnitte, AR bleibt)
+          const { uMin, uMax, vMin, vMax } = computeContainSpans(
+            LOGO_WARP.p0, LOGO_WARP.p1, LOGO_WARP.p2, LOGO_WARP.p3,
+            off.width, off.height
+          );
+
+          ctx.save();
+          const prevOp = ctx.globalCompositeOperation;
+          ctx.globalCompositeOperation = BLEND_MODE; // z.B. 'overlay'
+          if (ctx.globalCompositeOperation !== BLEND_MODE) {
+            ctx.globalCompositeOperation = 'screen';
+          }
+          drawWarpedImageContain(
+            ctx, off,
+            LOGO_WARP.p0, LOGO_WARP.p1, LOGO_WARP.p2, LOGO_WARP.p3,
+            uMin, uMax, vMin, vMax,
+            WARP_COLS, WARP_ROWS
+          );
+          ctx.globalCompositeOperation = prevOp;
+          ctx.restore();
+        }
+
+
+        if (SHOW_WARP_DEBUG) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = 'rgba(0,255,0,0.9)';
+          ctx.fillStyle = 'rgba(0,255,0,0.9)';
+          ctx.beginPath();
+          ctx.moveTo(LOGO_WARP.p0.x, LOGO_WARP.p0.y);
+          ctx.lineTo(LOGO_WARP.p1.x, LOGO_WARP.p1.y);
+          ctx.lineTo(LOGO_WARP.p2.x, LOGO_WARP.p2.y);
+          ctx.lineTo(LOGO_WARP.p3.x, LOGO_WARP.p3.y);
+          ctx.closePath();
+          ctx.stroke();
+          [LOGO_WARP.p0, LOGO_WARP.p1, LOGO_WARP.p2, LOGO_WARP.p3].forEach((p, i) => {
+            ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI * 2); ctx.fill();
+            ctx.font = '14px sans-serif'; ctx.fillText(`p${i}`, p.x + 10, p.y - 10);
+          });
+          ctx.restore();
+        }
+      }
+
+      // ========= Laden + UI =========
+      balloonImage.onload = () => { isBalloonLoaded = true; redrawCanvas(); };
+      balloonImage.onerror = () => {
+        alert('Konnte Hintergrund nicht laden: ' + currentBg);
+      };
+
+      // Einziger, einheitlicher Upload-Handler ist oben gebunden
+
+      downloadBtn.addEventListener('click', () => {
+        const a = document.createElement('a');
+        a.download = 'teams_background_logo.png';
+        a.href = canvas.toDataURL('image/png');
+        a.click();
+      });
+
+      resetBtn.addEventListener('click', () => {
+        latestLogo = null;
+        const newInput = fileInput.cloneNode(true);
+        fileInput.parentNode.replaceChild(newInput, fileInput);
+        fileInput = newInput;
+        bindUploadHandler(fileInput);
+        setButtons(false);
+        redrawCanvas();
+      });
+
+      // ========= Hintergrund-Auswahl =========
+      const bgSelect = document.getElementById('backgroundSelect');
+      const editWarp = document.getElementById('editWarp');
+      const resetWarpBtn = document.getElementById('resetWarpBtn');
+
+      bgSelect.addEventListener('change', () => {
+        const next = bgSelect.value;
+        currentBg = next;
+        // Warp auf Preset des neuen Hintergrunds setzen (kopie, damit editierbar)
+        const preset = WARP_PRESETS[next] || WARP_PRESETS['do_not_touch.png'];
+        LOGO_WARP = cloneWarp(preset);
+        isBalloonLoaded = false;
+        balloonImage.src = next;
+      });
+
+      editWarp.addEventListener('change', () => {
+        SHOW_WARP_DEBUG = !!editWarp.checked;
+        redrawCanvas();
+      });
+
+      resetWarpBtn.addEventListener('click', () => {
+        const preset = WARP_PRESETS[currentBg] || WARP_PRESETS['do_not_touch.png'];
+        LOGO_WARP = cloneWarp(preset);
+        redrawCanvas();
+      });
+
+      // ========= Drag der Warp-Punkte =========
+      function getMousePos(evt) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        return {
+          x: (evt.clientX - rect.left) * scaleX,
+          y: (evt.clientY - rect.top) * scaleY
+        };
+      }
+
+      canvas.addEventListener('mousedown', (e) => {
+        if (!SHOW_WARP_DEBUG) return;
+        const m = getMousePos(e);
+        const pts = [LOGO_WARP.p0, LOGO_WARP.p1, LOGO_WARP.p2, LOGO_WARP.p3];
+        let minD = Infinity, idx = -1;
+        for (let i = 0; i < pts.length; i++) {
+          const dx = pts[i].x - m.x, dy = pts[i].y - m.y;
+          const d = Math.hypot(dx, dy);
+          if (d < minD) { minD = d; idx = i; }
+        }
+        if (minD <= 25) draggingPoint = ['p0','p1','p2','p3'][idx];
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (!SHOW_WARP_DEBUG || !draggingPoint) return;
+        const m = getMousePos(e);
+        LOGO_WARP[draggingPoint].x = Math.max(0, Math.min(canvas.width, m.x));
+        LOGO_WARP[draggingPoint].y = Math.max(0, Math.min(canvas.height, m.y));
+        redrawCanvas();
+      });
+      window.addEventListener('mouseup', () => { draggingPoint = null; });
+    </script>
+
+
+
+
+
+
+</body>
+
+</html>
+
+
+
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Balloon Logo Overlay Tool</title>
+  <style>
+    body { font-family: sans-serif; background: #f5f5f5; text-align: center; padding: 20px; }
+    canvas { border: 1px solid #ccc; max-width: 100%; height: auto; }
+    input, button { margin: 10px; padding: 8px 12px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h2>Balloon Logo Overlay Tool</h2>
+  <p>Upload your logo to overlay it on the balloon image with blend mode and transform.</p>
+  <input type="file" id="logoUploader" accept="image/*" />
+  <br />
+  <canvas id="balloonCanvas" width="2048" height="1152"></canvas>
+  <br />
+  <a id="downloadLink" download="balloon_with_logo.png">
+    <button id="downloadBtn">Download as PNG</button>
+  </a>
+
+  <script>
+    const canvas = document.getElementById('balloonCanvas');
+    const ctx = canvas.getContext('2d');
+    const balloonImage = new Image();
+
+    balloonImage.src = 'Frame11712764.png';
+
+    let isBalloonLoaded = false;
+    let latestLogo = null;
+
+    function redrawCanvas() {
+      if (!isBalloonLoaded) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(balloonImage, 0, 0, canvas.width, canvas.height);
+
+      if (latestLogo) {
+        const logoWidth = 140;
+        const aspectRatio = latestLogo.height / latestLogo.width;
+        const logoHeight = logoWidth * aspectRatio;
+
+        const centerX = 1230;
+        const centerY = 700;
+        const x = centerX - logoWidth / 2;
+        const y = centerY - logoHeight / 2;
+
+        ctx.globalCompositeOperation = 'overlay';
+        ctx.drawImage(latestLogo, x, y, logoWidth, logoHeight);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    }
+
+    balloonImage.onload = () => {
+      isBalloonLoaded = true;
+      redrawCanvas();
+    };
+
+    document.getElementById('logoUploader').addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const logoImg = new Image();
+        logoImg.onload = function () {
+          latestLogo = logoImg;
+          redrawCanvas();
+        };
+        logoImg.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    document.getElementById('downloadBtn').addEventListener('click', () => {
+      const link = document.getElementById('downloadLink');
+      link.href = canvas.toDataURL('image/png');
+    });
+  </script>
+</body>
+</html> -->
